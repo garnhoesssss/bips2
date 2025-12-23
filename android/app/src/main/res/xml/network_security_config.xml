@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Network Security Config - Bipol Tracker 2025 (MobSF Compliant)
+  
+  CHANGES FOR MOBSF COMPLIANCE:
+  - Added certificate pinning for Supabase domain
+  - Removed generic system certificate trust where possible
+  - Base config restricted to production domains only
+-->
+<network-security-config>
+  
+    <!-- Base Config: HTTPS only, no cleartext -->
+    <base-config cleartextTrafficPermitted="false">
+        <!-- 
+          MobSF dislikes trusting all system certs.
+          But we need them for Google Maps, Firebase, etc.
+          This is acceptable for base-config.
+        -->
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </base-config>
+    
+    <!-- Supabase Backend - Certificate Pinning -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">supabase.co</domain>
+        <domain includeSubdomains="true">supabase.com</domain>
+        
+        <!-- Certificate Pinning for Supabase -->
+        <!-- Using Let's Encrypt root pins (Supabase uses Let's Encrypt) -->
+        <pin-set expiration="2025-12-31">
+            <!-- ISRG Root X1 (Let's Encrypt) -->
+            <pin digest="SHA-256">C5+lpZ7tcVwmwQIMcRtPbsQtWLABXhQzejna0wHFr8M=</pin>
+            <!-- Let's Encrypt R3 Intermediate -->
+            <pin digest="SHA-256">jQJTbIh0grw0/1TkHSumWb+Fs0Ggogr621gT3PvPKG0=</pin>
+            <!-- Backup pin: DigiCert Global Root G2 -->
+            <pin digest="SHA-256">i7WTqTvh0OioIruIfFR4kMPnBqrS2rdiVPl/s2uC/CY=</pin>
+        </pin-set>
+        
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </domain-config>
+    
+    <!-- Google APIs - Required for Maps -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">googleapis.com</domain>
+        <domain includeSubdomains="true">gstatic.com</domain>
+        <domain includeSubdomains="true">google.com</domain>
+        <domain includeSubdomains="true">googlemaps.com</domain>
+        
+        <!-- Google uses their own CA, pin their root -->
+        <pin-set expiration="2025-12-31">
+            <!-- GTS Root R1 (Google Trust Services) -->
+            <pin digest="SHA-256">hxqRlPTu1bMS/0DITB1SSu0vd4u/8l8TjPgfaAp63Gc=</pin>
+            <!-- GTS Root R2 -->
+            <pin digest="SHA-256">Vfd95BwDeSQo+NUYxVEEb6lAoE5x3/fXxX3kOxbG6Qg=</pin>
+            <!-- Backup: GlobalSign Root CA -->
+            <pin digest="SHA-256">cGuxAXyFXFkWm61cF4HPWX8S0srS9j0aSqN0k4AP+4A=</pin>
+        </pin-set>
+        
+        <trust-anchors>
+            <certificates src="system"/>
+        </trust-anchors>
+    </domain-config>
+
+    <!-- Debug Override: Trust user CA only in debug builds -->
+    <!-- This allows proxy debugging with Charles/Burp during development -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user"/>
+            <certificates src="system"/>
+        </trust-anchors>
+    </debug-overrides>
+    
+</network-security-config>

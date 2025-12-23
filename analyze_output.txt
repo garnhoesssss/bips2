@@ -1,0 +1,26 @@
+﻿Analyzing lib...                                                
+
+  error - The argument type 'CardTheme' can't be assigned to the parameter type 'CardThemeData?'.  - lib\main.dart:115:18 - argument_type_not_assignable
+   info - Dangling library doc comment - lib\models\announcement_model.dart:1:1 - dangling_library_doc_comments
+
+flutter : 2 issues 
+found. (ran in 2.1s)
+At line:1 char:1
++ flutter analyze 
+lib 2>&1 | Out-File 
+-FilePath 
+analyze_output.txt 
+-Enc ...
++ ~~~~~~~~~~~~~~~~~~~
+~~~~~
+    + CategoryInfo   
+           : NotSpe  
+  cified: (2 issue   
+ s found. (ran in    
+ 2.1s):String) [    
+], RemoteExcepti    
+on
+    + FullyQualified 
+   ErrorId : Native  
+  CommandError
+ 
