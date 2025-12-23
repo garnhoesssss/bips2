@@ -687,47 +687,28 @@ class _HomeMapPageState extends State<HomeMapPage> {
             ),
           ),
 
-          // Map layer buttons (right side)
+          // Refresh button (right side)
           Positioned(
             right: 16,
             top: MediaQuery.of(context).padding.top + (_hasError ? 140 : 90),
-            child: Column(
-              children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: AppShadows.cardShadow,
-                  ),
-                  child: IconButton(
-                    onPressed: () {
-                      // Toggle map layers (satellite/normal) - can be implemented
-                    },
-                    icon: const Icon(Icons.layers_rounded),
-                    color: AppColors.textMedium,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Container(
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: AppShadows.cardShadow,
-                  ),
-                  child: IconButton(
-                    onPressed: () {
-                      // Refresh data manually
-                      _busStreamSubscription?.cancel();
-                      setState(() {
-                        _isLoading = true;
-                      });
-                      _initBusStream();
-                    },
-                    icon: const Icon(Icons.refresh_rounded),
-                    color: AppColors.textMedium,
-                  ),
-                ),
-              ],
+            child: Container(
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: AppShadows.cardShadow,
+              ),
+              child: IconButton(
+                onPressed: () {
+                  // Refresh data manually
+                  _busStreamSubscription?.cancel();
+                  setState(() {
+                    _isLoading = true;
+                  });
+                  _initBusStream();
+                },
+                icon: const Icon(Icons.refresh_rounded),
+                color: AppColors.textMedium,
+              ),
             ),
           ),
 
