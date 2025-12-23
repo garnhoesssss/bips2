@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show cos, sqrt, asin, pi;
+import 'dart:math' show cos, sqrt, asin, pi, sin, atan2;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -9,7 +9,7 @@ import '../widgets/bus_bottom_sheet.dart';
 
 /// ============================================
 /// HOME MAP PAGE - FLEET COMMAND DESIGN
-/// Real-time Supabase Integration
+/// Real-time Supabase Integration + Smooth Animation
 /// ============================================
 
 class HomeMapPage extends StatefulWidget {
@@ -19,7 +19,7 @@ class HomeMapPage extends StatefulWidget {
   State<HomeMapPage> createState() => _HomeMapPageState();
 }
 
-class _HomeMapPageState extends State<HomeMapPage> {
+class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin {
   GoogleMapController? _mapController;
   BusModel? _selectedBus;
   List<BusModel> _buses = [];
@@ -33,6 +33,13 @@ class _HomeMapPageState extends State<HomeMapPage> {
   BitmapDescriptor? _halteMarkerIcon;
 
   StreamSubscription<List<Map<String, dynamic>>>? _busStreamSubscription;
+
+  // Smooth marker animation system
+  late AnimationController _markerAnimationController;
+  Map<String, LatLng> _busCurrentPositions = {};   // Current animated position
+  Map<String, LatLng> _busTargetPositions = {};    // Target from Supabase
+  Map<String, LatLng> _busStartPositions = {};     // Start of animation
+  Map<String, double> _busBearings = {};           // Direction bus is facing
 
   // Default center: Universitas Indonesia
   static const LatLng _defaultCenter = LatLng(-6.365, 106.824);
@@ -138,6 +145,14 @@ class _HomeMapPageState extends State<HomeMapPage> {
   @override
   void initState() {
     super.initState();
+    
+    // Initialize smooth marker animation controller
+    _markerAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 4500), // Slightly faster than GPS update interval
+    );
+    _markerAnimationController.addListener(_onMarkerAnimationTick);
+    
     _loadCustomMarkerIcons();
     _initBusStream();
   }
@@ -167,6 +182,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
   @override
   void dispose() {
+    _markerAnimationController.dispose();
     _busStreamSubscription?.cancel();
     _mapController?.dispose();
     super.dispose();
@@ -254,6 +270,30 @@ class _HomeMapPageState extends State<HomeMapPage> {
       );
     }).toList();
 
+    // Setup smooth animation for each bus
+    for (final bus in buses) {
+      if (bus.latitude == 0 && bus.longitude == 0) continue;
+      
+      final currentPos = _busCurrentPositions[bus.dbBusId] ?? bus.position;
+      final newPos = bus.position;
+      
+      // Calculate bearing (direction bus is facing)
+      if (currentPos != newPos) {
+        _busBearings[bus.dbBusId] = _calculateBearing(currentPos, newPos);
+      }
+      
+      // Set start position (current animated position or actual position)
+      _busStartPositions[bus.dbBusId] = currentPos;
+      // Set target position (new position from Supabase)
+      _busTargetPositions[bus.dbBusId] = newPos;
+      
+      // Initialize current position if not set
+      _busCurrentPositions[bus.dbBusId] ??= bus.position;
+    }
+    
+    // Start smooth animation to new positions
+    _startMarkerAnimation();
+
     setState(() {
       _buses = buses;
       _isLoading = false;
@@ -310,6 +350,56 @@ class _HomeMapPageState extends State<HomeMapPage> {
     }
   }
 
+  // ==================== SMOOTH ANIMATION METHODS ====================
+
+  /// Called on each animation frame to update marker positions
+  void _onMarkerAnimationTick() {
+    if (!mounted) return;
+    
+    setState(() {
+      for (final busId in _busTargetPositions.keys) {
+        final start = _busStartPositions[busId];
+        final end = _busTargetPositions[busId];
+        if (start != null && end != null) {
+          _busCurrentPositions[busId] = _lerpLatLng(
+            start, 
+            end, 
+            _markerAnimationController.value,
+          );
+        }
+      }
+    });
+  }
+
+  /// Linearly interpolate between two LatLng positions
+  LatLng _lerpLatLng(LatLng start, LatLng end, double t) {
+    return LatLng(
+      start.latitude + (end.latitude - start.latitude) * t,
+      start.longitude + (end.longitude - start.longitude) * t,
+    );
+  }
+
+  /// Calculate bearing (rotation angle) from one position to another
+  double _calculateBearing(LatLng from, LatLng to) {
+    final dLon = _toRadians(to.longitude - from.longitude);
+    final lat1 = _toRadians(from.latitude);
+    final lat2 = _toRadians(to.latitude);
+
+    final y = sin(dLon) * cos(lat2);
+    final x = cos(lat1) * sin(lat2) - sin(lat1) * cos(lat2) * cos(dLon);
+
+    return (_toDegrees(atan2(y, x)) + 360) % 360;
+  }
+
+  /// Convert radians to degrees
+  double _toDegrees(double radians) => radians * 180 / pi;
+
+  /// Start smooth animation for all buses with new target positions
+  void _startMarkerAnimation() {
+    _markerAnimationController.reset();
+    _markerAnimationController.forward();
+  }
+
   Set<Polyline> _buildPolylines() {
     return _routeLines;
   }
@@ -321,9 +411,16 @@ class _HomeMapPageState extends State<HomeMapPage> {
         return null;
       }
       
+      // Use animated position if available, otherwise use actual position
+      final animatedPosition = _busCurrentPositions[bus.dbBusId] ?? bus.position;
+      final rotation = _busBearings[bus.dbBusId] ?? 0.0;
+      
       return Marker(
         markerId: MarkerId(bus.dbBusId),
-        position: bus.position,
+        position: animatedPosition,
+        rotation: rotation,
+        anchor: const Offset(0.5, 0.5), // Center the marker for proper rotation
+        flat: true, // Flat marker rotates with the map
         icon: _busMarkerIcon ?? BitmapDescriptor.defaultMarkerWithHue(_getMarkerHue(bus)),
         infoWindow: InfoWindow(
           title: bus.displayId,
