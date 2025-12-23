@@ -163,10 +163,10 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
     _startAutoRefresh();
   }
 
-  /// Start auto-refresh timer to poll fresh data every 5 seconds
+  /// Start auto-refresh timer to poll fresh data every 1 second
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       _fetchLatestData();
     });
   }
