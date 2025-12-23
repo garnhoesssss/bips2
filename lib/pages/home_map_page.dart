@@ -214,6 +214,7 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
 
   @override
   void dispose() {
+    _autoRefreshTimer?.cancel();
     _markerAnimationController.dispose();
     _busStreamSubscription?.cancel();
     _mapController?.dispose();
