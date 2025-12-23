@@ -163,10 +163,10 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
     _startAutoRefresh();
   }
 
-  /// Start auto-refresh timer to poll fresh data every 1 second
+  /// Start auto-refresh timer to poll fresh data every 5 seconds
   void _startAutoRefresh() {
     _autoRefreshTimer?.cancel();
-    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 5), (_) {
       _fetchLatestData();
     });
   }
@@ -278,8 +278,6 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
         latestByBusId[busId] = row;
       }
     }
-
-    debugPrint('📊 Unique buses found: ${latestByBusId.keys.toList()}');
 
     // Convert to BusModel list
     List<BusModel> buses = latestByBusId.values
