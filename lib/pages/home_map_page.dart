@@ -41,6 +41,9 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
   Map<String, LatLng> _busStartPositions = {};     // Start of animation
   Map<String, double> _busBearings = {};           // Direction bus is facing
 
+  // Auto-refresh timer for polling fresh data
+  Timer? _autoRefreshTimer;
+
   // Default center: Universitas Indonesia
   static const LatLng _defaultCenter = LatLng(-6.365, 106.824);
 
@@ -155,6 +158,35 @@ class _HomeMapPageState extends State<HomeMapPage> with TickerProviderStateMixin
     
     _loadCustomMarkerIcons();
     _initBusStream();
+    
+    // Start auto-refresh timer (1 second interval)
+    _startAutoRefresh();
+  }
+
+  /// Start auto-refresh timer to poll fresh data every 1 second
+  void _startAutoRefresh() {
+    _autoRefreshTimer?.cancel();
+    _autoRefreshTimer = Timer.periodic(const Duration(seconds: 1), (_) {
+      _fetchLatestData();
+    });
+  }
+
+  /// Fetch latest data from Supabase (called by auto-refresh timer)
+  Future<void> _fetchLatestData() async {
+    try {
+      final supabase = Supabase.instance.client;
+      final data = await supabase
+          .from('bipol_tracker')
+          .select()
+          .order('created_at', ascending: false)
+          .limit(100);
+      
+      if (data.isNotEmpty && mounted) {
+        _processStreamData(List<Map<String, dynamic>>.from(data));
+      }
+    } catch (e) {
+      debugPrint('⚠️ Auto-refresh error: $e');
+    }
   }
 
   /// Load custom marker icons from assets
