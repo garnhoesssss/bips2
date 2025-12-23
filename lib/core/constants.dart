@@ -140,3 +140,15 @@ class AppDimensions {
   static const double iconMedium = 24.0;
   static const double iconLarge = 32.0;
 }
+
+/// ============================================
+/// ETA CALCULATION CONSTANTS
+/// Path-based ETA using Haversine distance
+/// ============================================
+class ETAConstants {
+  // Average speed for ETA calculation when bus is stopped (km/h)
+  static const double averageSpeedKmh = 20.0;
+  
+  // Watchdog threshold for device online status (seconds)
+  static const int watchdogThresholdSeconds = 15;
+}

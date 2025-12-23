@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' show cos, sqrt, asin, pi;
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -232,7 +233,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
     debugPrint('📊 Unique buses found: ${latestByBusId.keys.toList()}');
 
     // Convert to BusModel list
-    final List<BusModel> buses = latestByBusId.values
+    List<BusModel> buses = latestByBusId.values
         .map((row) => BusModel.fromSupabase(row))
         .toList();
 
@@ -240,6 +241,18 @@ class _HomeMapPageState extends State<HomeMapPage> {
     buses.sort((a, b) => 
         BusIdMapping.getDisplayOrder(a.dbBusId)
             .compareTo(BusIdMapping.getDisplayOrder(b.dbBusId)));
+
+    // Calculate ETA and nearest stop for each bus
+    buses = buses.map((bus) {
+      final nearestStopResult = _findNearestStopByPath(bus);
+      final nearestStopName = nearestStopResult['name'] as String;
+      final etaMinutes = _calculateETAMinutes(bus);
+      
+      return bus.copyWith(
+        nextStop: nearestStopName.isNotEmpty ? nearestStopName : bus.nextStop,
+        etaMinutes: etaMinutes,
+      );
+    }).toList();
 
     setState(() {
       _buses = buses;
@@ -353,6 +366,208 @@ class _HomeMapPageState extends State<HomeMapPage> {
       );
     }
   }
+
+  // ==================== ETA CALCULATIONS ====================
+  
+  /// Calculate ETA for a bus to the nearest stop
+  /// Returns formatted string like "5 min", "<1 min", or "--"
+  String _calculateETA(BusModel bus) {
+    final nearestStopResult = _findNearestStopByPath(bus);
+    final nearestStopDistance = nearestStopResult['distance'] as double;
+    
+    if (nearestStopDistance <= 0 || nearestStopDistance == double.infinity) {
+      return '--';
+    }
+
+    final double busSpeed = bus.speed;
+    // Use average speed if bus is stopped or moving slowly (< 3 km/h)
+    final double effectiveSpeed = (busSpeed < 3.0) 
+        ? ETAConstants.averageSpeedKmh 
+        : busSpeed;
+
+    if (effectiveSpeed <= 0) return '--';
+
+    // Calculate time: Distance (km) / Speed (km/h) = Time (hours)
+    final double timeInHours = nearestStopDistance / effectiveSpeed;
+    final int timeInMinutes = (timeInHours * 60).round();
+
+    if (timeInMinutes < 1) return '<1 min';
+    if (timeInMinutes == 1) return '1 min';
+    if (timeInMinutes > 120) return '${(timeInMinutes / 60).round()} jam';
+    return '$timeInMinutes min';
+  }
+
+  /// Calculate ETA in minutes (for BusModel.etaMinutes)
+  int? _calculateETAMinutes(BusModel bus) {
+    final nearestStopResult = _findNearestStopByPath(bus);
+    final nearestStopDistance = nearestStopResult['distance'] as double;
+    
+    if (nearestStopDistance <= 0 || nearestStopDistance == double.infinity) {
+      return null;
+    }
+
+    final double busSpeed = bus.speed;
+    final double effectiveSpeed = (busSpeed < 3.0) 
+        ? ETAConstants.averageSpeedKmh 
+        : busSpeed;
+
+    if (effectiveSpeed <= 0) return null;
+
+    final double timeInHours = nearestStopDistance / effectiveSpeed;
+    final int timeInMinutes = (timeInHours * 60).round();
+
+    return timeInMinutes < 1 ? 1 : timeInMinutes;
+  }
+
+  /// Get formatted distance string
+  String _getFormattedDistance(BusModel bus) {
+    final nearestStopResult = _findNearestStopByPath(bus);
+    final nearestStopDistance = nearestStopResult['distance'] as double;
+
+    if (nearestStopDistance <= 0 || nearestStopDistance == double.infinity) {
+      return '--';
+    }
+
+    if (nearestStopDistance < 1.0) {
+      return '${(nearestStopDistance * 1000).round()} m';
+    }
+
+    return '${nearestStopDistance.toStringAsFixed(1)} km';
+  }
+
+  /// Find the nearest bus stop using path-based distance calculation
+  /// Returns a map with 'name' and 'distance'
+  Map<String, dynamic> _findNearestStopByPath(BusModel bus) {
+    if (bus.latitude == 0 || bus.longitude == 0) {
+      return {'name': '', 'distance': 0.0};
+    }
+
+    final busLocation = LatLng(bus.latitude, bus.longitude);
+    double minDistance = double.infinity;
+    String nearestName = '';
+
+    for (final stop in _busStopData) {
+      final stopPosition = LatLng(stop['lat'] as double, stop['lng'] as double);
+      final roadDistance = _calculatePathDistanceToStop(busLocation, stopPosition);
+
+      // Skip stops that are extremely close (< 10 meters) - likely already passed
+      if (roadDistance > 0.01 && roadDistance < minDistance) {
+        minDistance = roadDistance;
+        nearestName = stop['title'] as String;
+      }
+    }
+
+    return {'name': nearestName, 'distance': minDistance};
+  }
+
+  /// Calculate path distance from bus to a stop using route polyline
+  double _calculatePathDistanceToStop(LatLng busLocation, LatLng stopLocation) {
+    final route = _getCurrentRoute();
+    final busIndex = _findClosestRoutePointIndex(busLocation, route);
+    final stopIndex = _findClosestRoutePointIndex(stopLocation, route);
+
+    double routeDistance = _calculateRouteDistance(busIndex, stopIndex, route);
+
+    // Add distance from bus to nearest route point
+    final busToRoutePoint = _haversineDistance(
+      busLocation.latitude, busLocation.longitude,
+      route[busIndex].latitude, route[busIndex].longitude,
+    );
+
+    // Add distance from route point to stop
+    final routePointToStop = _haversineDistance(
+      route[stopIndex].latitude, route[stopIndex].longitude,
+      stopLocation.latitude, stopLocation.longitude,
+    );
+
+    return routeDistance + busToRoutePoint + routePointToStop;
+  }
+
+  /// Get current route based on time of day
+  List<LatLng> _getCurrentRoute() {
+    // Morning route (before noon), afternoon route (after noon)
+    if (DateTime.now().hour < 12) {
+      // Extract points from morning polyline
+      return _routeLines
+          .firstWhere((p) => p.polylineId.value == 'rute_pagi')
+          .points;
+    } else {
+      return _routeLines
+          .firstWhere((p) => p.polylineId.value == 'rute_sore')
+          .points;
+    }
+  }
+
+  /// Find the index of the closest point on the route to a given location
+  int _findClosestRoutePointIndex(LatLng location, List<LatLng> route) {
+    int closestIndex = 0;
+    double minDistance = double.infinity;
+
+    for (int i = 0; i < route.length; i++) {
+      final distance = _haversineDistance(
+        location.latitude, location.longitude,
+        route[i].latitude, route[i].longitude,
+      );
+
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+
+    return closestIndex;
+  }
+
+  /// Calculate distance along the route between two indices
+  double _calculateRouteDistance(int startIndex, int endIndex, List<LatLng> route) {
+    if (startIndex < 0 || endIndex < 0 || 
+        startIndex >= route.length || endIndex >= route.length) {
+      return 0.0;
+    }
+
+    double totalDistance = 0.0;
+
+    if (startIndex <= endIndex) {
+      // Simple case: travel forward along route
+      for (int i = startIndex; i < endIndex; i++) {
+        totalDistance += _haversineDistance(
+          route[i].latitude, route[i].longitude,
+          route[i + 1].latitude, route[i + 1].longitude,
+        );
+      }
+    } else {
+      // Wrap around: bus is ahead of stop on circular route
+      // Go to end of route
+      for (int i = startIndex; i < route.length - 1; i++) {
+        totalDistance += _haversineDistance(
+          route[i].latitude, route[i].longitude,
+          route[i + 1].latitude, route[i + 1].longitude,
+        );
+      }
+      // Then from start to stop
+      for (int i = 0; i < endIndex; i++) {
+        totalDistance += _haversineDistance(
+          route[i].latitude, route[i].longitude,
+          route[i + 1].latitude, route[i + 1].longitude,
+        );
+      }
+    }
+
+    return totalDistance;
+  }
+
+  /// Haversine formula to calculate distance between two coordinates (in km)
+  double _haversineDistance(double lat1, double lon1, double lat2, double lon2) {
+    const R = 6371.0; // Earth's radius in km
+    final dLat = _toRadians(lat2 - lat1);
+    final dLon = _toRadians(lon2 - lon1);
+    final a = 0.5 - cos(dLat) / 2 +
+        cos(_toRadians(lat1)) * cos(_toRadians(lat2)) * (1 - cos(dLon)) / 2;
+    return R * 2 * asin(sqrt(a));
+  }
+
+  /// Convert degrees to radians
+  double _toRadians(double degree) => degree * pi / 180;
 
   @override
   Widget build(BuildContext context) {
