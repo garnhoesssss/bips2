@@ -69,8 +69,8 @@ class RouteInfoPage extends StatelessWidget {
               },
             ),
 
-            // Bottom padding for safe area
-            const SizedBox(height: 32),
+            // Bottom padding for safe area + navbar height
+            const SizedBox(height: 100),
           ],
         ),
       ),

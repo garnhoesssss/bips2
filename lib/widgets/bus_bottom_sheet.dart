@@ -118,11 +118,6 @@ class _BusDetailPanelState extends State<BusDetailPanel>
                   // Stats Row: Speed, ETA, Status
                   _buildStatsRow(),
 
-                  const SizedBox(height: 20),
-
-                  // Timeline Widget: Next Stop & Following
-                  _buildTimeline(),
-
                   // Air Quality Widget (only for BUS-01)
                   if (widget.bus.hasGasSensor) ...[
                     const SizedBox(height: 16),
@@ -299,85 +294,6 @@ class _BusDetailPanelState extends State<BusDetailPanel>
           Text(
             label,
             style: AppTextStyles.statLabel,
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTimeline() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.backgroundGrey,
-        borderRadius: BorderRadius.circular(AppDimensions.borderRadiusMedium),
-      ),
-      child: Row(
-        children: [
-          // Timeline visual
-          Column(
-            children: [
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: AppColors.morningRoute,
-                  shape: BoxShape.circle,
-                ),
-              ),
-              Container(
-                width: 2,
-                height: 40,
-                color: AppColors.divider,
-              ),
-              Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  color: Colors.transparent,
-                  shape: BoxShape.circle,
-                  border: Border.all(color: AppColors.divider, width: 2),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(width: 16),
-
-          // Stop details
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'NEXT STOP',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.bus.nextStop ?? 'Unknown',
-                  style: AppTextStyles.labelBold.copyWith(fontSize: 15),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'FOLLOWING',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    fontWeight: FontWeight.w600,
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  widget.bus.followingStop ?? 'Unknown',
-                  style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textLight,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ),
